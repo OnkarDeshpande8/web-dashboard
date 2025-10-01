@@ -258,6 +258,12 @@ export default function Dashboard() {
                 Dashboard
               </a>
               <a 
+                href="/documentation" 
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium flex items-center justify-center sm:justify-start"
+              >
+                📄 Documentation
+              </a>
+              <a 
                 href="/swagger" 
                 className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium flex items-center justify-center sm:justify-start"
               >
