@@ -49,7 +49,8 @@ function SensorCard({ title, value, status, icon, isLoading }: {
 
 // Simple DataChart component inline
 function DataChart({ data }: { data: SensorData[] }) {
-  const lastHourData = data.slice(-60);
+  // Data is already in descending order (newest first), so reverse for chart display (oldest to newest)
+  const lastHourData = data.slice(0, 60).reverse();
   
   return (
     <div className="space-y-4">
@@ -108,6 +109,8 @@ export default function Dashboard() {
   const [sensorData, setSensorData] = useState<SensorData[]>([])
   const [latestData, setLatestData] = useState<SensorData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const recordsPerPage = 10
 
   // Mock data for demonstration
   const mockData: SensorData[] = [
@@ -150,7 +153,7 @@ export default function Dashboard() {
     // Set up periodic updates to check for new data from Google Sheets
     const interval = setInterval(() => {
       fetchSensorData()
-    }, 30000) // Check every 30 seconds for new data
+    }, 10000) // Check every 10 seconds for new data
     
     return () => clearInterval(interval)
   }, [])
@@ -163,9 +166,9 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json()
-        setSensorData(data)
+        setSensorData(data) // Data is already in descending order (newest first)
         if (data.length > 0) {
-          setLatestData(data[data.length - 1])
+          setLatestData(data[0]) // First item is the latest/newest data
         }
         console.log(`Loaded ${data.length} records from Google Sheets`)
       } else {
@@ -182,6 +185,51 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Pagination helper functions
+  const getTotalPages = () => Math.ceil(sensorData.length / recordsPerPage)
+  
+  const getCurrentPageData = () => {
+    const startIndex = (currentPage - 1) * recordsPerPage
+    const endIndex = startIndex + recordsPerPage
+    return sensorData.slice(startIndex, endIndex)
+  }
+
+  const getPageNumbers = () => {
+    const totalPages = getTotalPages()
+    const pages: (number | string)[] = []
+    
+    if (totalPages <= 7) {
+      // Show all pages if 7 or fewer
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      // Show first page, current page area, and last page with ellipsis
+      pages.push(1)
+      
+      if (currentPage > 3) {
+        pages.push('...')
+      }
+      
+      const start = Math.max(2, currentPage - 1)
+      const end = Math.min(totalPages - 1, currentPage + 1)
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+      
+      if (currentPage < totalPages - 2) {
+        pages.push('...')
+      }
+      
+      if (totalPages > 1) {
+        pages.push(totalPages)
+      }
+    }
+    
+    return pages
   }
 
   return (
@@ -251,12 +299,20 @@ export default function Dashboard() {
 
         {/* Recent Data Table */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-semibold mb-4">Recent Readings</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-semibold">Recent Readings</h2>
+            {sensorData.length > 0 && (
+              <div className="text-sm text-gray-500">
+                Total: {sensorData.length} records
+              </div>
+            )}
+          </div>
+          
           <div className="overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left">Timestamp</th>
+                  <th className="px-4 py-2 text-left">Timestamp (Latest First)</th>
                   <th className="px-4 py-2 text-left">Distance (cm)</th>
                   <th className="px-4 py-2 text-left">Water Level</th>
                   <th className="px-4 py-2 text-left">Status</th>
@@ -264,19 +320,26 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {sensorData.length > 0 ? (
-                  sensorData.slice(-10).reverse().map((data, index) => (
-                    <tr key={index} className="border-b">
-                      <td className="px-4 py-2">{new Date(data.timestamp).toLocaleString()}</td>
-                      <td className="px-4 py-2">{data.distance.toFixed(1)}</td>
+                  getCurrentPageData().map((data, index) => (
+                    <tr key={index} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-sm ${
+                        <div className="flex flex-col">
+                          <span className="font-medium">{new Date(data.timestamp).toLocaleDateString()}</span>
+                          <span className="text-sm text-gray-500">{new Date(data.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className="font-mono">{data.distance.toFixed(1)}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-sm font-medium ${
                           data.waterLevel === 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                         }`}>
                           {data.waterLevel}
                         </span>
                       </td>
                       <td className="px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-sm ${
+                        <span className={`px-2 py-1 rounded text-sm font-medium ${
                           data.status === 'Alert' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
                         }`}>
                           {data.status}
@@ -294,6 +357,60 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {sensorData.length > recordsPerPage && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+              <div className="text-sm text-gray-700">
+                Showing {((currentPage - 1) * recordsPerPage) + 1} to {Math.min(currentPage * recordsPerPage, sensorData.length)} of {sensorData.length} entries
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1 rounded text-sm font-medium ${
+                    currentPage === 1 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600 cursor-pointer'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center space-x-1">
+                  {getPageNumbers().map((pageNum, index) => (
+                    <button
+                      key={index}
+                      onClick={() => typeof pageNum === 'number' ? setCurrentPage(pageNum) : null}
+                      disabled={pageNum === '...'}
+                      className={`px-3 py-1 rounded text-sm font-medium ${
+                        pageNum === currentPage
+                          ? 'bg-blue-500 text-white'
+                          : pageNum === '...'
+                          ? 'text-gray-400 cursor-default'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, getTotalPages()))}
+                  disabled={currentPage === getTotalPages()}
+                  className={`px-3 py-1 rounded text-sm font-medium ${
+                    currentPage === getTotalPages()
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-500 text-white hover:bg-blue-600 cursor-pointer'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Connection Status */}
@@ -305,7 +422,7 @@ export default function Dashboard() {
             </span>
           </div>
           <p className="text-gray-600 text-sm mt-2">
-            Flood monitoring updates every 5 seconds • {sensorData.length} readings stored
+            Flood monitoring updates every 10 seconds • {sensorData.length} readings stored • Latest: {latestData ? new Date(latestData.timestamp).toLocaleString() : 'No data'}
           </p>
         </div>
         </div>

@@ -180,43 +180,8 @@ export class GoogleSheetsService {
         .map((row) => {
           const [timestampStr, distanceStr, waterLevel, status] = row;
           
-          // Parse timestamp - handle various formats
-          let timestamp: string;
-          try {
-            if (!timestampStr || timestampStr.trim() === '') {
-              // If no timestamp, use current time
-              timestamp = new Date().toISOString();
-            } else {
-              // Try parsing the timestamp from sheets
-              // Handle formats like "12/30/2025, 3:45:30 PM" or "2025-12-30T15:45:30.000Z"
-              let date: Date;
-              
-              if (timestampStr.includes(',')) {
-                // Format: "12/30/2025, 3:45:30 PM"
-                date = new Date(timestampStr);
-              } else if (timestampStr.includes('T')) {
-                // ISO format: "2025-12-30T15:45:30.000Z"
-                date = new Date(timestampStr);
-              } else {
-                // Try general date parsing
-                date = new Date(timestampStr);
-              }
-              
-              if (isNaN(date.getTime()) || date.getFullYear() < 2020) {
-                // If parsing fails or date is invalid (like 1970), use current time
-                console.warn('Invalid timestamp from sheets:', timestampStr, 'using current time');
-                timestamp = new Date().toISOString();
-              } else {
-                timestamp = date.toISOString();
-              }
-            }
-          } catch (error) {
-            console.error('Error parsing timestamp:', timestampStr, error);
-            timestamp = new Date().toISOString();
-          }
-
           return {
-            timestamp,
+            timestamp: timestampStr,
             distance: parseFloat(distanceStr) || 0,
             waterLevel: (waterLevel as 'HIGH' | 'LOW') || 'LOW',
             status: (status as 'Normal' | 'Alert') || 'Normal',
