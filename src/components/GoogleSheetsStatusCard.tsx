@@ -13,9 +13,19 @@ interface GoogleSheetsStatus {
   };
 }
 
-export default function GoogleSheetsStatusCard() {
+interface GoogleSheetsStatusCardProps {
+  isAutoRefreshEnabled?: boolean;
+  onManualRefresh?: () => void;
+}
+
+export default function GoogleSheetsStatusCard({ 
+  isAutoRefreshEnabled = false,
+  onManualRefresh 
+}: GoogleSheetsStatusCardProps) {
   const [status, setStatus] = useState<GoogleSheetsStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  console.log('GoogleSheetsStatusCard rendered with isAutoRefreshEnabled:', isAutoRefreshEnabled);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -35,11 +45,27 @@ export default function GoogleSheetsStatusCard() {
     };
 
     checkStatus();
-    // Check status every 30 seconds
-    const interval = setInterval(checkStatus, 30000);
     
-    return () => clearInterval(interval);
-  }, []);
+    // Only set up polling if auto-refresh is enabled
+    let interval: NodeJS.Timeout | null = null;
+    
+    console.log('GoogleSheetsStatusCard useEffect - isAutoRefreshEnabled:', isAutoRefreshEnabled);
+    
+    if (isAutoRefreshEnabled) {
+      console.log('Setting up Google Sheets status polling interval');
+      // Check status every 30 seconds when auto-refresh is enabled
+      interval = setInterval(checkStatus, 30000);
+    } else {
+      console.log('Skipping Google Sheets status polling - manual mode');
+    }
+    
+    return () => {
+      if (interval) {
+        console.log('Clearing Google Sheets status polling interval');
+        clearInterval(interval);
+      }
+    };
+  }, [isAutoRefreshEnabled]);
 
   const handleInitialize = async () => {
     try {
@@ -56,6 +82,28 @@ export default function GoogleSheetsStatusCard() {
       }
     } catch (error) {
       console.error('Error initializing Google Sheets:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/sheets/status');
+      const data = await response.json();
+      setStatus(data);
+      
+      // Call the parent's manual refresh callback if provided
+      if (onManualRefresh) {
+        onManualRefresh();
+      }
+    } catch (error) {
+      console.error('Error refreshing Google Sheets status:', error);
+      setStatus({
+        connected: false,
+        error: 'Failed to refresh status',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +171,17 @@ export default function GoogleSheetsStatusCard() {
           </div>
         )}
       </div>
+
+      {/* Manual refresh button when auto-refresh is disabled */}
+      {!isAutoRefreshEnabled && (
+        <button
+          onClick={handleManualRefresh}
+          disabled={isLoading}
+          className="mt-3 w-full px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50"
+        >
+          {isLoading ? 'Refreshing...' : '🔄 Refresh Status'}
+        </button>
+      )}
 
       {hasConfiguration && !isConnected && (
         <button

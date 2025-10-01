@@ -110,6 +110,7 @@ export default function Dashboard() {
   const [latestData, setLatestData] = useState<SensorData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(false) // Auto-refresh toggle
   const recordsPerPage = 10
 
   // Mock data for demonstration
@@ -150,13 +151,21 @@ export default function Dashboard() {
     // Fetch data from Google Sheets
     fetchSensorData()
     
-    // Set up periodic updates to check for new data from Google Sheets
-    const interval = setInterval(() => {
-      fetchSensorData()
-    }, 10000) // Check every 10 seconds for new data
+    // Set up periodic updates to check for new data from Google Sheets only if auto-refresh is enabled
+    let interval: NodeJS.Timeout | null = null
     
-    return () => clearInterval(interval)
-  }, [])
+    if (isAutoRefreshEnabled) {
+      interval = setInterval(() => {
+        fetchSensorData()
+      }, 10000) // Check every 10 seconds for new data
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval)
+      }
+    }
+  }, [isAutoRefreshEnabled])
 
   const fetchSensorData = async () => {
     try {
@@ -262,6 +271,41 @@ export default function Dashboard() {
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
         
+        {/* Auto-Refresh Toggle */}
+        <div className="mb-6 flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <h2 className="text-lg font-semibold text-gray-900">Sensor System Control</h2>
+            <button
+              onClick={() => setIsAutoRefreshEnabled(!isAutoRefreshEnabled)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                isAutoRefreshEnabled
+                  ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                  : 'bg-red-100 text-red-800 hover:bg-red-200'
+              }`}
+            >
+              <div className={`w-3 h-3 rounded-full ${
+                isAutoRefreshEnabled ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
+              <span>
+                {isAutoRefreshEnabled ? 'Auto-Refresh ON' : 'Auto-Refresh OFF'}
+              </span>
+            </button>
+            {!isAutoRefreshEnabled && (
+              <button
+                onClick={fetchSensorData}
+                disabled={isLoading}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                <span>🔄</span>
+                <span>{isLoading ? 'Refreshing...' : 'Manual Refresh'}</span>
+              </button>
+            )}
+          </div>
+          <div className="text-sm text-gray-500">
+            {isAutoRefreshEnabled ? 'Fetching data every 10 seconds' : 'Manual refresh only'}
+          </div>
+        </div>
+        
         {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <SensorCard
@@ -288,7 +332,10 @@ export default function Dashboard() {
             isLoading={isLoading}
           />
 
-          <GoogleSheetsStatusCard />
+          <GoogleSheetsStatusCard 
+            isAutoRefreshEnabled={isAutoRefreshEnabled}
+            onManualRefresh={fetchSensorData}
+          />
         </div>
 
         {/* Data Visualization */}
