@@ -47,59 +47,28 @@ function SensorCard({ title, value, status, icon, isLoading }: {
   );
 }
 
-// Simple DataChart component inline
-function DataChart({ data }: { data: SensorData[] }) {
-  // Data is already in descending order (newest first), so reverse for chart display (oldest to newest)
-  const lastHourData = data.slice(0, 60).reverse();
+// Current Reading Display Only
+function DataChart({ data, floodThreshold = 12 }: { data: SensorData[]; floodThreshold?: number }) {
+  if (!data || data.length === 0) {
+    return <div className="text-center py-8 text-gray-500">No data available</div>;
+  }
+  
+  const latest = data[0];
+  const isAlert = latest.distance < floodThreshold;
   
   return (
-    <div className="space-y-4">
-      <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-        <h3 className="text-base sm:text-lg font-semibold mb-2">Distance Readings (Last Hour)</h3>
-        <div className="h-48 sm:h-64 flex items-end space-x-1 overflow-x-auto">
-          {lastHourData.map((reading, index) => (
-            <div
-              key={index}
-              className={`min-w-[6px] sm:min-w-[8px] rounded-t ${
-                reading.distance < 20 ? 'bg-red-500' : 'bg-blue-500'
-              }`}
-              style={{
-                height: `${Math.max((reading.distance / 200) * 100, 5)}%`,
-              }}
-              title={`${reading.distance}cm at ${new Date(reading.timestamp).toLocaleTimeString()}`}
-            />
-          ))}
-        </div>
-        <div className="flex justify-between text-xs sm:text-sm text-gray-600 mt-2">
-          <span>0cm</span>
-          <span className="hidden sm:inline">Distance</span>
-          <span>200cm+</span>
-        </div>
+    <div className="text-center">
+      <div className="text-sm text-gray-600 mb-2">Current Distance Reading</div>
+      <div className={`text-5xl sm:text-6xl font-bold mb-4 ${isAlert ? 'text-red-600' : 'text-blue-600'}`}>
+        {latest.distance.toFixed(1)} cm
       </div>
-      
-      <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-        <h3 className="text-base sm:text-lg font-semibold mb-2">Water Level Status</h3>
-        <div className="flex space-x-1 sm:space-x-2 overflow-x-auto">
-          {lastHourData.slice(-20).map((reading, index) => (
-            <div
-              key={index}
-              className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0 ${
-                reading.waterLevel === 'HIGH' ? 'bg-red-500' : 'bg-green-500'
-              }`}
-              title={`${reading.waterLevel} at ${new Date(reading.timestamp).toLocaleTimeString()}`}
-            />
-          ))}
-        </div>
-        <div className="flex justify-between text-xs sm:text-sm text-gray-600 mt-2">
-          <span className="flex items-center">
-            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full mr-1"></div>
-            Low
-          </span>
-          <span className="flex items-center">
-            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full mr-1"></div>
-            High
-          </span>
-        </div>
+      <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+        isAlert ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+      }`}>
+        {isAlert ? '🚨 FLOOD ALERT' : '✅ NORMAL LEVEL'}
+      </div>
+      <div className="text-xs text-gray-500 mt-3">
+        Alert threshold: {floodThreshold} cm • Last updated: {new Date(latest.timestamp).toLocaleTimeString()}
       </div>
     </div>
   );
@@ -112,6 +81,9 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(false) // Auto-refresh toggle
   const recordsPerPage = 10
+  
+  // Flood detection threshold - matches ESP32 sensor configuration
+  const FLOOD_THRESHOLD_CM = 12; // Distance < 12cm indicates flood/high water level
 
   // Mock data for demonstration
   const mockData: SensorData[] = [
@@ -123,7 +95,7 @@ export default function Dashboard() {
     },
     {
       timestamp: new Date(Date.now() - 30000).toISOString(),
-      distance: 18.5,
+      distance: 8.5, // < 12cm - triggers flood alert
       waterLevel: 'HIGH',
       status: 'Alert',
     },
@@ -135,15 +107,15 @@ export default function Dashboard() {
     },
     {
       timestamp: new Date(Date.now() - 90000).toISOString(),
-      distance: 15.2,
-      waterLevel: 'LOW',
+      distance: 10.2, // < 12cm - triggers flood alert
+      waterLevel: 'HIGH',
       status: 'Alert',
     },
     {
       timestamp: new Date(Date.now() - 120000).toISOString(),
-      distance: 182.3,
-      waterLevel: 'HIGH',
-      status: 'Alert',
+      distance: 25.3, // > 12cm - normal level
+      waterLevel: 'LOW',
+      status: 'Normal',
     },
   ];
 
@@ -319,7 +291,7 @@ export default function Dashboard() {
           <SensorCard
             title="Ultrasonic Distance"
             value={latestData?.distance ? `${latestData.distance.toFixed(1)} cm` : '--'}
-            status={latestData?.distance && latestData.distance < 20 ? 'warning' : 'normal'}
+            status={latestData?.distance && latestData.distance < FLOOD_THRESHOLD_CM ? 'warning' : 'normal'}
             icon="📏"
             isLoading={isLoading}
           />
@@ -349,7 +321,7 @@ export default function Dashboard() {
         {/* Data Visualization */}
         <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl font-semibold mb-4">Real-time Data</h2>
-          <DataChart data={sensorData} />
+          <DataChart data={sensorData} floodThreshold={FLOOD_THRESHOLD_CM} />
         </div>
 
         {/* Recent Data Table */}

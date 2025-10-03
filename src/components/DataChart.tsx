@@ -3,9 +3,10 @@ import { SensorData } from '../types/sensor';
 
 interface DataChartProps {
   data: SensorData[];
+  floodThreshold?: number;
 }
 
-export default function DataChart({ data }: DataChartProps) {
+export default function DataChart({ data, floodThreshold = 12 }: DataChartProps) {
   // For now, we'll create a simple text-based chart
   // Later you can integrate with libraries like Recharts
   
@@ -20,7 +21,7 @@ export default function DataChart({ data }: DataChartProps) {
             <div
               key={index}
               className={`bg-blue-500 min-w-[8px] rounded-t ${
-                reading.distance < 20 ? 'bg-red-500' : 'bg-blue-500'
+                reading.distance < floodThreshold ? 'bg-red-500' : 'bg-blue-500'
               }`}
               style={{
                 height: `${Math.max((reading.distance / 200) * 100, 5)}%`,

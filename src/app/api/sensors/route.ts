@@ -12,13 +12,13 @@ const mockData: SensorData[] = [
   },
   {
     timestamp: new Date(Date.now() - 30000).toISOString(),
-    distance: 18.5,
+    distance: 8.5, // < 12cm threshold - flood detected
     waterLevel: 'HIGH' as const,
     status: 'Alert' as const,
   },
   {
     timestamp: new Date(Date.now() - 60000).toISOString(),
-    distance: 180.1,
+    distance: 25.1, // > 12cm threshold - normal level
     waterLevel: 'LOW' as const,
     status: 'Normal' as const,
   },
@@ -26,8 +26,8 @@ const mockData: SensorData[] = [
 
 // Helper function to calculate water level and status based on distance
 function calculateWaterLevelAndStatus(distance: number): { waterLevel: 'HIGH' | 'LOW'; status: 'Normal' | 'Alert' } {
-  // Configurable threshold - distances less than 50cm indicate high water level
-  const FLOOD_THRESHOLD = 50; // cm
+  // Configurable threshold - distances less than 12cm indicate high water level (flood detected)
+  const FLOOD_THRESHOLD = 12; // cm - matches ESP32 sensor configuration
   
   if (distance < FLOOD_THRESHOLD) {
     return { waterLevel: 'HIGH', status: 'Alert' };
